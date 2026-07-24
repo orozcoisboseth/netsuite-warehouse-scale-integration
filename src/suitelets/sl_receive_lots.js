@@ -10,7 +10,7 @@ define([
 
     '../services/purchase_order_service',
     '../services/scale_service',
-    '../services/item_fulfillment_service'
+    '../services/item_receipt_service'
 ], (
     serverWidget,
     runtime,
@@ -18,7 +18,7 @@ define([
 
     PurchaseOrderService,
     ScaleService,
-    ItemFulfillmentService
+    ItemReceiptService
 ) => {
 
     /*
@@ -372,7 +372,7 @@ define([
     };
 
     /**
-     * Creates an Item Fulfillment with lots that contain weight.
+     * Creates an Item receipt with lots that contain weight.
      */
     const processSave = (context, body) => {
         requireValue(
@@ -406,8 +406,8 @@ define([
             return;
         }
 
-        const fulfillmentId =
-            ItemFulfillmentService.create({
+        const itemReceiptId  =
+            ItemReceiptService.create({
                 purchaseOrder: body.purchaseOrder,
                 location: body.location,
                 lots
@@ -415,7 +415,7 @@ define([
 
         writeJson(context, {
             success: true,
-            fulfillmentId
+            itemReceiptId 
         });
     };
 
