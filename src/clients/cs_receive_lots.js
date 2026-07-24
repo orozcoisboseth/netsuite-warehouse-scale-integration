@@ -105,7 +105,7 @@ define([
             rec.getValue({
                 fieldId: 'custpage_barcode'
             }) || ''
-        ).trim();
+        );
 
         if (!lot) {
             return;
@@ -204,9 +204,9 @@ define([
             sublistId: 'custpage_lots'
         });
 
-        const normalizedLot = String(
+        const targetLot = String(
             lotNumber || ''
-        ).trim();
+        );
 
         for (let line = 0; line < lineCount; line++) {
             const currentLot = String(
@@ -215,9 +215,9 @@ define([
                     fieldId: 'lot',
                     line
                 }) || ''
-            ).trim();
+            );
 
-            if (currentLot !== normalizedLot) {
+            if (currentLot !== targetLot) {
                 continue;
             }
 
@@ -254,7 +254,8 @@ define([
     };
 
     /**
-     * Creates an Item receipt using only lots with captured weight.
+     * Creates an Item Receipt using only lots
+     * with captured weight.
      */
     const saveReceiving = async () => {
         if (requestInProgress) {
@@ -307,7 +308,7 @@ define([
                 showMessage(
                     'Unable to Save',
                     result.message ||
-                        'The Item receipt could not be created.',
+                        'The Item Receipt could not be created.',
                     message.Type.ERROR
                 );
 
@@ -363,8 +364,16 @@ define([
                 continue;
             }
 
+            const poLine = Number(
+                rec.getSublistValue({
+                    sublistId: 'custpage_lots',
+                    fieldId: 'po_line',
+                    line
+                })
+            );
+
             lots.push({
-                line,
+                poLine,
                 lot: rec.getSublistValue({
                     sublistId: 'custpage_lots',
                     fieldId: 'lot',
