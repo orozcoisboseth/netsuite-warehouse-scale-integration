@@ -28,7 +28,11 @@ define([
             filters: [
                 ['isinactive', search.Operator.IS, 'F'],
                 'AND',
-                ['subsidiary', search.Operator.ANYOF, subsidiaryId]
+                [
+                    'subsidiary',
+                    search.Operator.ANYOF,
+                    subsidiaryId
+                ]
             ],
             columns: [
                 search.createColumn({
@@ -54,7 +58,7 @@ define([
 
     /**
      * Returns lots assigned in the Purchase Order inventory detail
-     * that still have quantity pending to receive.
+     * that still belong to lines with quantity pending to receive.
      *
      * @param {string|number} purchaseOrderId
      * @returns {Array<Object>}
@@ -72,22 +76,25 @@ define([
         });
 
         const pendingLots = [];
+
         const lineCount = purchaseOrder.getLineCount({
             sublistId: 'item'
         });
 
         for (let line = 0; line < lineCount; line++) {
-            const itemId = purchaseOrder.getSublistValue({
-                sublistId: 'item',
-                fieldId: 'item',
-                line
-            });
+            const itemId =
+                purchaseOrder.getSublistValue({
+                    sublistId: 'item',
+                    fieldId: 'item',
+                    line
+                });
 
-            const itemName = purchaseOrder.getSublistText({
-                sublistId: 'item',
-                fieldId: 'item',
-                line
-            });
+            const itemName =
+                purchaseOrder.getSublistText({
+                    sublistId: 'item',
+                    fieldId: 'item',
+                    line
+                });
 
             const quantity = Number(
                 purchaseOrder.getSublistValue({
@@ -112,23 +119,15 @@ define([
                 continue;
             }
 
-            const hasInventoryDetail =
-                purchaseOrder.hasSublistSubrecord({
-                    sublistId: 'item',
-                    fieldId: 'inventorydetail',
+            const inventoryDetail =
+                getInventoryDetail({
+                    purchaseOrder,
                     line
                 });
 
-            if (!hasInventoryDetail) {
+            if (!inventoryDetail) {
                 continue;
             }
-
-            const inventoryDetail =
-                purchaseOrder.getSublistSubrecord({
-                    sublistId: 'item',
-                    fieldId: 'inventorydetail',
-                    line
-                });
 
             const assignmentCount =
                 inventoryDetail.getLineCount({
@@ -155,14 +154,18 @@ define([
                     })
                 ) || 0;
 
-                if (!lotNumber || assignedQuantity <= 0) {
+                if (
+                    lotNumber === null ||
+                    lotNumber === undefined ||
+                    lotNumber === '' ||
+                    assignedQuantity <= 0
+                ) {
                     continue;
                 }
 
                 pendingLots.push({
                     poLine: line,
                     assignmentLine,
-                    lotId: null,
                     number: String(lotNumber),
                     itemId: String(itemId),
                     item: itemName || String(itemId),
@@ -179,7 +182,9 @@ define([
 
     /**
      * Validates that a scanned lot exists in the Purchase Order's
-     * inventory detail and still belongs to a pending line.
+     * inventory detail and belongs to a pending transaction line.
+     *
+     * Lot comparison is exact and case-sensitive.
      *
      * @param {Object} options
      * @param {string|number} options.purchaseOrder
@@ -195,9 +200,9 @@ define([
             'Purchase Order ID is required.'
         );
 
-        const normalizedLot = normalizeLotNumber(lot);
+        const lotNumber = normalizeLotNumber(lot);
 
-        if (!normalizedLot) {
+        if (!lotNumber) {
             return {
                 success: false,
                 message: 'Lot number is required.'
@@ -209,8 +214,9 @@ define([
 
         const matchedLot = pendingLots.find(
             (pendingLot) =>
-                normalizeLotNumber(pendingLot.number) ===
-                normalizedLot
+                normalizeLotNumber(
+                    pendingLot.number
+                ) === lotNumber
         );
 
         if (!matchedLot) {
@@ -228,14 +234,45 @@ define([
     };
 
     /**
-     * Normalizes the scanned lot number.
+     * Safely returns the Inventory Detail subrecord from a
+     * Purchase Order item line.
      *
-     * Use toUpperCase() only if lot comparison should be
-     * case-insensitive in your process.
+     * Some lines may not contain Inventory Detail, and attempting
+     * to retrieve it may throw an error.
+     *
+     * @param {Object} options
+     * @param {record.Record} options.purchaseOrder
+     * @param {number} options.line
+     * @returns {record.Subrecord|null}
+     */
+    const getInventoryDetail = ({
+        purchaseOrder,
+        line
+    }) => {
+        try {
+            return purchaseOrder.getSublistSubrecord({
+                sublistId: 'item',
+                fieldId: 'inventorydetail',
+                line
+            }) || null;
+
+        } catch (error) {
+            return null;
+        }
+    };
+
+    /**
+     * Converts a lot number to a string without modifying it.
+     *
+     * No trimming or case conversion is applied because the
+     * receiving process requires an exact match.
+     *
+     * @param {*} lotNumber
+     * @returns {string}
      */
     const normalizeLotNumber = (lotNumber) => {
-    return String(lotNumber || '');
-};
+        return String(lotNumber || '');
+    };
 
     const requireValue = (
         value,
