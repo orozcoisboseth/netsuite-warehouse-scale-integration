@@ -9,45 +9,47 @@ define([
 ) => {
 
     /**
-     * Retrieves the current weight from a PrintNode scale endpoint.
+     * Retrieves the current weight from a configured scale endpoint.
      *
      * @param {Object} options
-     * @param {string} options.url
-     * @param {string} options.authorization
+     * @param {string} options.endpoint
+     * @param {string} options.authorizationHeader
      *
      * @returns {number}
      */
     const getWeight = ({
-        url,
-        authorization
+        endpoint,
+        authorizationHeader
     }) => {
         requireValue(
-            url,
-            'The PrintNode endpoint is required.'
+            endpoint,
+            'The scale endpoint is required.'
         );
 
         requireValue(
-            authorization,
-            'The PrintNode authorization header is required.'
+            authorizationHeader,
+            'The scale authorization header is required.'
         );
 
         const response = https.request({
             method: https.Method.GET,
-            url,
+            url: endpoint,
             headers: {
-                Authorization: authorization,
+                Authorization: authorizationHeader,
                 Accept: 'application/json'
             }
         });
 
-        const statusCode = Number(response.code);
+        const statusCode = Number(
+            response.code
+        );
 
         if (
             statusCode < 200 ||
             statusCode >= 300
         ) {
             throw new Error(
-                `PrintNode returned HTTP ${statusCode}.`
+                `The scale middleware returned HTTP ${statusCode}.`
             );
         }
 
@@ -60,9 +62,9 @@ define([
         );
 
         log.audit({
-            title: 'PrintNode scale response',
+            title: 'Scale Middleware Response',
             details: {
-                endpoint: url,
+                endpoint,
                 weight
             }
         });
@@ -71,7 +73,7 @@ define([
     };
 
     /**
-     * Parses the JSON returned by PrintNode.
+     * Parses the JSON returned by the scale middleware.
      *
      * Expected response:
      *
@@ -86,7 +88,7 @@ define([
     const parseResponse = (body) => {
         if (!body) {
             throw new Error(
-                'PrintNode returned an empty response.'
+                'The scale middleware returned an empty response.'
             );
         }
 
@@ -95,18 +97,18 @@ define([
 
         } catch (error) {
             log.error({
-                title: 'Invalid PrintNode response',
+                title: 'Invalid Scale Middleware Response',
                 details: body
             });
 
             throw new Error(
-                'PrintNode returned invalid JSON.'
+                'The scale middleware returned invalid JSON.'
             );
         }
     };
 
     /**
-     * Extracts and normalizes the weight from a PrintNode response.
+     * Extracts and normalizes the weight from the middleware response.
      *
      * @param {Array} data
      * @returns {number}
@@ -119,7 +121,7 @@ define([
             !data[0].measurement
         ) {
             throw new Error(
-                'PrintNode did not return a scale measurement.'
+                'The scale middleware did not return a measurement.'
             );
         }
 
@@ -129,13 +131,13 @@ define([
 
         if (!Number.isFinite(weight)) {
             throw new Error(
-                'PrintNode returned an invalid weight.'
+                'The scale middleware returned an invalid weight.'
             );
         }
 
         /*
-         * Some PrintNode scale responses may express kilograms
-         * using a nanoscale value.
+         * Some scale integrations may return kilograms
+         * as a nanoscale value.
          */
         if (weight >= 1000000000) {
             weight /= 1000000000;
@@ -150,6 +152,12 @@ define([
         return weight;
     };
 
+    /**
+     * Validates required values.
+     *
+     * @param {*} value
+     * @param {string} errorMessage
+     */
     const requireValue = (
         value,
         errorMessage
