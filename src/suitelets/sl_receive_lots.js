@@ -6,47 +6,60 @@
 define([
     'N/ui/serverWidget',
     'N/runtime',
-    'N/redirect',
-    'N/search',
     'N/record',
 
     '../services/purchase_order_service',
     '../services/scale_service',
-    '../services/fulfillment_service'
+    '../services/item_fulfillment_service'
 
 ], (
 
     serverWidget,
     runtime,
-    redirect,
-    search,
     record,
 
     PurchaseOrderService,
     ScaleService,
-    FulfillmentService
+    ItemFulfillmentService
 
 ) => {
 
+    // Replace with the role that can manually enter weights.
     const MANUAL_WEIGHT_ROLE = 1234;
-    // Replace with your custom role.
 
     const onRequest = (context) => {
 
         if (context.request.method === 'GET') {
-
             return renderPage(context);
-
         }
 
-        return processRequest(context);
+        const body = JSON.parse(context.request.body);
+
+        switch (body.action) {
+
+            case 'scanLot':
+                return processScan(context, body);
+
+            case 'save':
+                return processSave(context, body);
+
+            default:
+
+                context.response.write(JSON.stringify({
+
+                    success: false,
+                    message: 'Invalid action.'
+
+                }));
+
+        }
 
     };
 
     /**
-     * ----------------------------------------------------------------------
+     * ------------------------------------------------------------------
      * GET
-     * ----------------------------------------------------------------------
+     * ------------------------------------------------------------------
      */
 
     const renderPage = (context) => {
@@ -61,14 +74,14 @@ define([
 
         }
 
-        const po = record.load({
+        const purchaseOrder = record.load({
 
             type: record.Type.PURCHASE_ORDER,
             id: poId
 
         });
 
-        const subsidiary = po.getValue('subsidiary');
+        const subsidiary = purchaseOrder.getValue('subsidiary');
 
         const form = serverWidget.createForm({
 
@@ -80,37 +93,61 @@ define([
             '../clients/cs_receive_lots.js';
 
         /**
-         * Hidden Purchase Order
+         * Hidden Purchase Order Id
          */
 
-        const fldPo = form.addField({
+        const fldPO = form.addField({
 
             id: 'custpage_poid',
-            type: serverWidget.FieldType.TEXT,
-            label: 'PO'
+
+            label: 'Purchase Order',
+
+            type: serverWidget.FieldType.TEXT
 
         });
 
-        fldPo.defaultValue = poId;
-        fldPo.updateDisplayType({
+        fldPO.defaultValue = poId;
 
-            displayType: serverWidget.FieldDisplayType.HIDDEN
+        fldPO.updateDisplayType({
+
+            displayType:
+            serverWidget.FieldDisplayType.HIDDEN
 
         });
 
         /**
-         * Location
+         * Warehouse Location
          */
 
         const fldLocation = form.addField({
 
             id: 'custpage_location',
-            type: serverWidget.FieldType.SELECT,
-            label: 'Location'
+
+            label: 'Location',
+
+            type: serverWidget.FieldType.SELECT
 
         });
 
-        loadLocations(fldLocation, subsidiary);
+        fldLocation.addSelectOption({
+
+            value: '',
+            text: ''
+
+        });
+
+        PurchaseOrderService
+            .getLocations(subsidiary)
+            .forEach(location => {
+
+                fldLocation.addSelectOption({
+
+                    value: location.id,
+                    text: location.name
+
+                });
+
+            });
 
         /**
          * Scale
@@ -119,12 +156,32 @@ define([
         const fldScale = form.addField({
 
             id: 'custpage_scale',
-            type: serverWidget.FieldType.SELECT,
-            label: 'Scale'
+
+            label: 'Scale',
+
+            type: serverWidget.FieldType.SELECT
 
         });
 
-        loadScales(fldScale);
+        fldScale.addSelectOption({
+
+            value: '',
+            text: ''
+
+        });
+
+        ScaleService
+            .getAvailableScales()
+            .forEach(scale => {
+
+                fldScale.addSelectOption({
+
+                    value: scale.id,
+                    text: scale.name
+
+                });
+
+            });
 
         /**
          * Barcode
@@ -134,9 +191,9 @@ define([
 
             id: 'custpage_barcode',
 
-            type: serverWidget.FieldType.TEXT,
+            label: 'Scan Lot',
 
-            label: 'Scan Lot'
+            type: serverWidget.FieldType.TEXT
 
         });
 
@@ -176,7 +233,7 @@ define([
 
         sublist.addField({
 
-            id: 'qty',
+            id: 'quantity',
 
             label: 'Quantity',
 
@@ -184,7 +241,7 @@ define([
 
         });
 
-        const weight = sublist.addField({
+        const weightField = sublist.addField({
 
             id: 'weight',
 
@@ -195,14 +252,14 @@ define([
         });
 
         /**
-         * Role validation
+         * Manual weight permission
          */
 
         const currentRole = runtime.getCurrentUser().role;
 
         if (currentRole !== MANUAL_WEIGHT_ROLE) {
 
-            weight.updateDisplayType({
+            weightField.updateDisplayType({
 
                 displayType:
                 serverWidget.FieldDisplayType.INLINE
@@ -212,43 +269,40 @@ define([
         }
 
         /**
-         * Pending lots
+         * Pending Lots
          */
 
-        PurchaseOrderService.loadLots(poId)
-            .forEach((lot, line) => {
+        const lots =
+            PurchaseOrderService
+                .getPendingLots(poId);
 
-                sublist.setSublistValue({
+        lots.forEach((lot, line) => {
 
-                    id: 'lot',
+            sublist.setSublistValue({
 
-                    line,
-
-                    value: lot.number
-
-                });
-
-                sublist.setSublistValue({
-
-                    id: 'item',
-
-                    line,
-
-                    value: lot.item
-
-                });
-
-                sublist.setSublistValue({
-
-                    id: 'qty',
-
-                    line,
-
-                    value: lot.quantity.toString()
-
-                });
+                id: 'lot',
+                line,
+                value: lot.number
 
             });
+
+            sublist.setSublistValue({
+
+                id: 'item',
+                line,
+                value: lot.item
+
+            });
+
+            sublist.setSublistValue({
+
+                id: 'quantity',
+                line,
+                value: String(lot.quantity)
+
+            });
+
+        });
 
         form.addSubmitButton({
 
@@ -258,7 +312,7 @@ define([
 
         form.addButton({
 
-            id: 'cancel',
+            id: 'custpage_cancel',
 
             label: 'Cancel',
 
@@ -271,40 +325,12 @@ define([
     };
 
     /**
-     * ----------------------------------------------------------------------
-     * POST
-     * ----------------------------------------------------------------------
+     * ------------------------------------------------------------------
+     * Scan Lot
+     * ------------------------------------------------------------------
      */
 
-    const processRequest = (context) => {
-
-        const action = context.request.parameters.action;
-
-        switch (action) {
-
-            case 'scanLot':
-
-                return processScan(context);
-
-            case 'save':
-
-                return processSave(context);
-
-            case 'cancel':
-
-                return processCancel(context);
-
-        }
-
-    };
-
-    /**
-     * Scan barcode
-     */
-
-    const processScan = (context) => {
-
-        const body = JSON.parse(context.request.body);
+    const processScan = (context, body) => {
 
         const validation =
             PurchaseOrderService.validateLot({
@@ -322,7 +348,7 @@ define([
                 success: false,
 
                 message:
-                    'Lot does not belong to this Purchase Order.'
+                    'The scanned lot does not belong to this Purchase Order.'
 
             }));
 
@@ -352,15 +378,23 @@ define([
     };
 
     /**
-     * Save Item Fulfillment
+     * ------------------------------------------------------------------
+     * Save
+     * ------------------------------------------------------------------
      */
 
-    const processSave = (context) => {
-
-        const body = JSON.parse(context.request.body);
+    const processSave = (context, body) => {
 
         const fulfillmentId =
-            FulfillmentService.create(body);
+            ItemFulfillmentService.create({
+
+                purchaseOrder: body.purchaseOrder,
+
+                location: body.location,
+
+                lots: body.lots
+
+            });
 
         context.response.write(JSON.stringify({
 
@@ -369,38 +403,6 @@ define([
             fulfillmentId
 
         }));
-
-    };
-
-    /**
-     * Cancel
-     */
-
-    const processCancel = (context) {
-
-        redirect.toRecord({
-
-            type: record.Type.PURCHASE_ORDER,
-
-            id: context.request.parameters.poid
-
-        });
-
-    }
-
-    /**
-     * Helpers
-     */
-
-    const loadLocations = (field, subsidiary) => {
-
-        // Search locations for subsidiary
-
-    };
-
-    const loadScales = (field) => {
-
-        // Search customrecord_scale
 
     };
 
