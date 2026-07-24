@@ -163,7 +163,7 @@ define([
                     poLine: line,
                     assignmentLine,
                     lotId: null,
-                    number: String(lotNumber).trim(),
+                    number: String(lotNumber),
                     itemId: String(itemId),
                     item: itemName || String(itemId),
                     quantity: assignedQuantity,
@@ -234,10 +234,8 @@ define([
      * case-insensitive in your process.
      */
     const normalizeLotNumber = (lotNumber) => {
-        return String(
-            lotNumber || ''
-        ).trim();
-    };
+    return String(lotNumber || '');
+};
 
     const requireValue = (
         value,
