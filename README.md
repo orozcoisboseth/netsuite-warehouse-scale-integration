@@ -4,6 +4,8 @@ A SuiteScript 2.1 solution for receiving lot-numbered Purchase Orders using an e
 
 The solution validates scanned lot numbers against the Purchase Order, retrieves the current weight from a configured scale, creates an Item Receipt, and stores the captured weight on the corresponding Inventory Number record.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/orozcoisboseth/netsuite-warehouse-scale-integration)
+
 ---
 
 ## Features
