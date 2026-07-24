@@ -29,7 +29,7 @@ Purchase Order
 User Event
       │
       ▼
-Purchase Order Client Script
+Client Script
       │
       ▼
 Suitelet
