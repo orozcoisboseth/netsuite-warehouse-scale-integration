@@ -51,7 +51,9 @@ define([
 
             writeJson(context, {
                 success: false,
-                message: error.message || 'An unexpected error occurred.'
+                message:
+                    error.message ||
+                    'An unexpected error occurred.'
             });
         }
     };
@@ -78,7 +80,8 @@ define([
             fieldId: 'subsidiary'
         });
 
-        const canEnterManualWeight = userCanEnterManualWeight();
+        const canEnterManualWeight =
+            userCanEnterManualWeight();
 
         const form = serverWidget.createForm({
             title: 'Receive Lots'
@@ -139,7 +142,8 @@ define([
         poField.defaultValue = String(poId);
 
         poField.updateDisplayType({
-            displayType: serverWidget.FieldDisplayType.HIDDEN
+            displayType:
+                serverWidget.FieldDisplayType.HIDDEN
         });
 
         const manualWeightField = form.addField({
@@ -152,7 +156,8 @@ define([
             canEnterManualWeight ? 'T' : 'F';
 
         manualWeightField.updateDisplayType({
-            displayType: serverWidget.FieldDisplayType.HIDDEN
+            displayType:
+                serverWidget.FieldDisplayType.HIDDEN
         });
     };
 
@@ -177,7 +182,9 @@ define([
         });
 
         const locations =
-            PurchaseOrderService.getLocations(subsidiaryId);
+            PurchaseOrderService.getLocations(
+                subsidiaryId
+            );
 
         locations.forEach((location) => {
             locationField.addSelectOption({
@@ -197,7 +204,8 @@ define([
             text: ''
         });
 
-        const scales = ScaleService.getAvailableScales();
+        const scales =
+            ScaleService.getAvailableScales();
 
         scales.forEach((scale) => {
             scaleField.addSelectOption({
@@ -224,6 +232,24 @@ define([
             id: 'custpage_lots',
             type: serverWidget.SublistType.LIST,
             label: 'Purchase Order Lots'
+        });
+
+        /*
+         * Stores the original Purchase Order line.
+         *
+         * This allows the Item Receipt service to identify the
+         * correct transaction line even when the same item appears
+         * more than once on the Purchase Order.
+         */
+        const poLineField = sublist.addField({
+            id: 'po_line',
+            type: serverWidget.FieldType.INTEGER,
+            label: 'Purchase Order Line'
+        });
+
+        poLineField.updateDisplayType({
+            displayType:
+                serverWidget.FieldDisplayType.HIDDEN
         });
 
         sublist.addField({
@@ -255,13 +281,21 @@ define([
          * Manual user changes are restricted in validateField().
          */
         weightField.updateDisplayType({
-            displayType: serverWidget.FieldDisplayType.ENTRY
+            displayType:
+                serverWidget.FieldDisplayType.ENTRY
         });
 
         const lots =
             PurchaseOrderService.getPendingLots(poId);
 
         lots.forEach((lot, line) => {
+            setSublistValue({
+                sublist,
+                id: 'po_line',
+                line,
+                value: lot.poLine
+            });
+
             setSublistValue({
                 sublist,
                 id: 'lot',
@@ -289,7 +323,9 @@ define([
      * Processes JSON requests from the Client Script.
      */
     const processPost = (context) => {
-        const body = parseRequestBody(context.request.body);
+        const body = parseRequestBody(
+            context.request.body
+        );
 
         switch (body.action) {
             case ACTION.SCAN_LOT:
@@ -309,7 +345,8 @@ define([
     };
 
     /**
-     * Validates the lot and obtains its weight from the selected scale.
+     * Validates the lot and obtains its weight
+     * from the selected scale.
      */
     const processScan = (context, body) => {
         requireValue(
@@ -334,7 +371,8 @@ define([
 
         const validation =
             PurchaseOrderService.validateLot({
-                purchaseOrder: body.purchaseOrder,
+                purchaseOrder:
+                    body.purchaseOrder,
                 lot: body.lot
             });
 
@@ -372,7 +410,8 @@ define([
     };
 
     /**
-     * Creates an Item receipt with lots that contain weight.
+     * Creates an Item Receipt with lots
+     * that contain weight.
      */
     const processSave = (context, body) => {
         requireValue(
@@ -387,7 +426,9 @@ define([
 
         const lots = Array.isArray(body.lots)
             ? body.lots.filter((lot) => {
-                const weight = Number(lot.weight);
+                const weight = Number(
+                    lot.weight
+                );
 
                 return (
                     Number.isFinite(weight) &&
@@ -406,43 +447,75 @@ define([
             return;
         }
 
-        const itemReceiptId  =
+        /*
+         * Validate that each selected lot includes its original
+         * Purchase Order line.
+         */
+        lots.forEach((lot) => {
+            if (
+                !Number.isInteger(
+                    Number(lot.poLine)
+                ) ||
+                Number(lot.poLine) < 0
+            ) {
+                throw new Error(
+                    `Invalid Purchase Order line for lot ${lot.lot || ''}.`
+                );
+            }
+        });
+
+        const itemReceiptId =
             ItemReceiptService.create({
-                purchaseOrder: body.purchaseOrder,
-                location: body.location,
+                purchaseOrder:
+                    body.purchaseOrder,
+                location:
+                    body.location,
                 lots
             });
 
         writeJson(context, {
             success: true,
-            itemReceiptId 
+            itemReceiptId
         });
     };
 
     /**
-     * Determines whether the current role can manually enter weights.
+     * Determines whether the current role
+     * can manually enter weights.
      */
     const userCanEnterManualWeight = () => {
         const currentRole = String(
             runtime.getCurrentUser().role
         );
 
-        return MANUAL_WEIGHT_ROLES.includes(currentRole);
+        return MANUAL_WEIGHT_ROLES.includes(
+            currentRole
+        );
     };
 
-    const parseRequestBody = (requestBody) => {
+    const parseRequestBody = (
+        requestBody
+    ) => {
         if (!requestBody) {
-            throw new Error('The request body is empty.');
+            throw new Error(
+                'The request body is empty.'
+            );
         }
 
         try {
             return JSON.parse(requestBody);
+
         } catch (error) {
-            throw new Error('The request body is not valid JSON.');
+            throw new Error(
+                'The request body is not valid JSON.'
+            );
         }
     };
 
-    const requireValue = (value, errorMessage) => {
+    const requireValue = (
+        value,
+        errorMessage
+    ) => {
         if (
             value === null ||
             value === undefined ||
@@ -473,10 +546,14 @@ define([
         });
     };
 
-    const writeJson = (context, payload) => {
+    const writeJson = (
+        context,
+        payload
+    ) => {
         context.response.setHeader({
             name: 'Content-Type',
-            value: 'application/json; charset=utf-8'
+            value:
+                'application/json; charset=utf-8'
         });
 
         context.response.write(
