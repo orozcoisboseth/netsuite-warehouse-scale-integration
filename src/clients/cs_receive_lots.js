@@ -15,6 +15,15 @@ define([
 
     let requestInProgress = false;
 
+    /*
+     * Distinguishes an automatic weight update from a manual
+     * value entered by the user.
+     */
+    let automaticWeightUpdate = false;
+
+    /**
+     * Initializes the receiving page.
+     */
     const pageInit = () => {
         console.log('Receive Lots initialized');
     };
@@ -29,6 +38,49 @@ define([
         ) {
             scanLot();
         }
+    };
+
+    /**
+     * Prevents unauthorized users from entering weights manually.
+     *
+     * The weight field remains editable so the Client Script can
+     * populate it with the value returned by the scale.
+     */
+    const validateField = (context) => {
+        if (
+            context.sublistId !== 'custpage_lots' ||
+            context.fieldId !== 'weight'
+        ) {
+            return true;
+        }
+
+        /*
+         * Allow values populated automatically from the scale.
+         */
+        if (automaticWeightUpdate) {
+            return true;
+        }
+
+        const rec = currentRecord.get();
+
+        const canEnterManualWeight = rec.getValue({
+            fieldId: 'custpage_can_manual_weight'
+        });
+
+        if (
+            canEnterManualWeight === true ||
+            canEnterManualWeight === 'T'
+        ) {
+            return true;
+        }
+
+        showMessage(
+            'Manual Entry Not Allowed',
+            'Your role can only capture weights from the selected scale.',
+            message.Type.WARNING
+        );
+
+        return false;
     };
 
     /**
@@ -95,7 +147,8 @@ define([
             if (!result.success) {
                 showMessage(
                     'Unable to Capture Weight',
-                    result.message || 'The lot could not be processed.',
+                    result.message ||
+                        'The lot could not be processed.',
                     message.Type.ERROR
                 );
 
@@ -128,7 +181,8 @@ define([
 
             showMessage(
                 'Error',
-                error.message || 'An unexpected error occurred.',
+                error.message ||
+                    'An unexpected error occurred.',
                 message.Type.ERROR
             );
 
@@ -141,7 +195,7 @@ define([
     /**
      * Updates the weight of the corresponding lot.
      *
-     * @returns {boolean} true when the lot was found.
+     * @returns {boolean} True when the lot was found.
      */
     const updateWeight = (lotNumber, weight) => {
         const rec = currentRecord.get();
@@ -150,7 +204,9 @@ define([
             sublistId: 'custpage_lots'
         });
 
-        const normalizedLot = String(lotNumber).trim();
+        const normalizedLot = String(
+            lotNumber || ''
+        ).trim();
 
         for (let line = 0; line < lineCount; line++) {
             const currentLot = String(
@@ -170,16 +226,26 @@ define([
                 line
             });
 
-            rec.setCurrentSublistValue({
-                sublistId: 'custpage_lots',
-                fieldId: 'weight',
-                value: Number(weight),
-                ignoreFieldChange: true
-            });
+            /*
+             * Temporarily allow the automatic weight update.
+             */
+            automaticWeightUpdate = true;
 
-            rec.commitLine({
-                sublistId: 'custpage_lots'
-            });
+            try {
+                rec.setCurrentSublistValue({
+                    sublistId: 'custpage_lots',
+                    fieldId: 'weight',
+                    value: Number(weight),
+                    ignoreFieldChange: true
+                });
+
+                rec.commitLine({
+                    sublistId: 'custpage_lots'
+                });
+
+            } finally {
+                automaticWeightUpdate = false;
+            }
 
             return true;
         }
@@ -261,7 +327,8 @@ define([
 
             showMessage(
                 'Error',
-                error.message || 'An unexpected error occurred.',
+                error.message ||
+                    'An unexpected error occurred.',
                 message.Type.ERROR
             );
 
@@ -289,7 +356,10 @@ define([
                 })
             );
 
-            if (!Number.isFinite(weight) || weight <= 0) {
+            if (
+                !Number.isFinite(weight) ||
+                weight <= 0
+            ) {
                 continue;
             }
 
@@ -347,13 +417,16 @@ define([
      * Sends a JSON request to the current Suitelet.
      */
     const postToSuitelet = async (payload) => {
-        const response = await fetch(window.location.href, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
+        const response = await fetch(
+            window.location.href,
+            {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            }
+        );
 
         const responseText = await response.text();
 
@@ -365,8 +438,12 @@ define([
 
         try {
             return JSON.parse(responseText);
+
         } catch (error) {
-            console.error('Unexpected Suitelet response:', responseText);
+            console.error(
+                'Unexpected Suitelet response:',
+                responseText
+            );
 
             throw new Error(
                 'The Suitelet returned an invalid response.'
@@ -374,6 +451,9 @@ define([
         }
     };
 
+    /**
+     * Clears the barcode field without triggering fieldChanged again.
+     */
     const clearBarcode = (rec) => {
         rec.setValue({
             fieldId: 'custpage_barcode',
@@ -382,7 +462,14 @@ define([
         });
     };
 
-    const showMessage = (title, text, type) => {
+    /**
+     * Displays a NetSuite message.
+     */
+    const showMessage = (
+        title,
+        text,
+        type
+    ) => {
         message.create({
             title,
             message: text,
@@ -395,6 +482,7 @@ define([
     return {
         pageInit,
         fieldChanged,
+        validateField,
         scanLot,
         saveReceiving,
         cancelReceiving
