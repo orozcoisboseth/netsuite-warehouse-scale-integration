@@ -25,7 +25,7 @@ define([], () => {
             return;
         }
 
-        context.form.clientScriptModulePath = './cs_receive_lots.js';
+        context.form.clientScriptModulePath = './cs_receive_lots_redirect.js';
 
         context.form.addButton({
             id: 'custpage_receive_lots',
