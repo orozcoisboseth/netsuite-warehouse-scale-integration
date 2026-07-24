@@ -254,7 +254,7 @@ define([
     };
 
     /**
-     * Creates an Item Fulfillment using only lots with captured weight.
+     * Creates an Item receipt using only lots with captured weight.
      */
     const saveReceiving = async () => {
         if (requestInProgress) {
@@ -307,20 +307,20 @@ define([
                 showMessage(
                     'Unable to Save',
                     result.message ||
-                        'The Item Fulfillment could not be created.',
+                        'The Item receipt could not be created.',
                     message.Type.ERROR
                 );
 
                 return;
             }
 
-            const fulfillmentUrl = url.resolveRecord({
-                recordType: 'itemfulfillment',
-                recordId: result.fulfillmentId,
+            const itemReceiptUrl = url.resolveRecord({
+                recordType: 'itemreceipt',
+                recordId: result.itemReceiptId,
                 isEditMode: false
             });
 
-            window.location.assign(fulfillmentUrl);
+            window.location.assign(itemReceiptUrl);
 
         } catch (error) {
             console.error(error);
