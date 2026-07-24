@@ -77,7 +77,7 @@ define([
         });
 
         form.clientScriptModulePath =
-            '../clients/cs_purchase_order_receive_lots.js';
+            '../clients/cs_receive_lots.js';
 
         /**
          * Hidden Purchase Order
